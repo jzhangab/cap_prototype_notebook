@@ -42,13 +42,12 @@ class LLMClient:
             llm = project.get_llm(self.connection_id)
 
             completion = llm.new_completion()
+            completion.settings.temperature = temperature
+            completion.settings.max_tokens = self.max_tokens
             for msg in messages:
                 completion.with_message(msg["role"], msg["content"])
 
-            resp = completion.execute(
-                temperature=temperature,
-                max_tokens=self.max_tokens
-            )
+            resp = completion.execute()
             self.call_log.append({
                 "messages": messages,
                 "response": resp.text,
