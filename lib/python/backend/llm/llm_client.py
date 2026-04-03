@@ -58,6 +58,12 @@ class LLMClient:
 
         except Exception as e:
             logger.error("LLM Mesh call failed: %s", e)
+            self.call_log.append({
+                "messages": messages,
+                "response": f"ERROR: {e}",
+                "temperature": temperature,
+                "error": True,
+            })
             raise
 
     def complete_json(self, messages: list[dict], temperature: float = None) -> dict:
