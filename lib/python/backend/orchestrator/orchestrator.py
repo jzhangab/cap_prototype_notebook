@@ -170,10 +170,14 @@ class Orchestrator:
         if intent is None:
             # Check if user is picking a skill by number
             intent = self._parse_skill_selection(user_message)
+            reasoning = None   # manual selection has no LLM reasoning
 
         if intent is None:
             state.fsm_state = FSMState.CLARIFICATION_REQUEST
-            msg = CLARIFICATION_MESSAGE
+            reasoning_block = (
+                f"\n\n---\n*Intent reasoning: {reasoning}*" if reasoning else ""
+            )
+            msg = CLARIFICATION_MESSAGE + reasoning_block
             return self._build_response(message=msg, state=state)
 
         # Intent recognized — set active skill and extract params
@@ -190,7 +194,19 @@ class Orchestrator:
         )
         state.merge_params(intent, extracted)
 
-        return self._check_and_confirm(state)
+        # Build the downstream response (param questions or confirmation prompt)
+        response = self._check_and_confirm(state)
+
+        # Prepend the reasoning block so the user can see how intent was detected
+        skill_name = self.schemas[intent].display_name
+        reasoning_block = (
+            f"**Intent detected:** {skill_name} *(confidence: {confidence:.0%})*\n"
+            f"**Reasoning:** {reasoning}\n\n---\n\n"
+        ) if reasoning else (
+            f"**Intent detected:** {skill_name}\n\n---\n\n"
+        )
+        response['message'] = reasoning_block + (response.get('message') or '')
+        return response
 
     # ------------------------------------------------------------------
     # Parameter completeness check → confirmation or gather more
