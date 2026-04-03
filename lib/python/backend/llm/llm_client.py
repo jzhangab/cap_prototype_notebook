@@ -18,6 +18,7 @@ class LLMClient:
         self.temp_agents = config["llm_mesh"].get("temperature_agents", 0.3)
         self.temp_deterministic = config["llm_mesh"].get("temperature_deterministic", 0.0)
         self._client = None
+        self.call_log: list[dict] = []  # records every LLM call for the trace pane
 
     def _get_dataiku_client(self):
         """Lazy-initialize the Dataiku API client."""
@@ -48,6 +49,11 @@ class LLMClient:
                 temperature=temperature,
                 max_tokens=self.max_tokens
             )
+            self.call_log.append({
+                "messages": messages,
+                "response": resp.text,
+                "temperature": temperature,
+            })
             return resp.text
 
         except Exception as e:
