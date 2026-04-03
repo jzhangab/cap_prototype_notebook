@@ -167,18 +167,20 @@ class Orchestrator:
         # Idle or clarification — classify intent first
         intent, confidence, reasoning = classify_intent(self.llm, user_message, history)
 
+        # Preserve the LLM reasoning BEFORE any overwrite
+        llm_reasoning = reasoning
+
         if intent is None:
             # Check if user is picking a skill by number
             intent = self._parse_skill_selection(user_message)
-            reasoning = None   # manual selection has no LLM reasoning
 
         if intent is None:
             state.fsm_state = FSMState.CLARIFICATION_REQUEST
-            reasoning_block = (
-                f"\n\n---\n*Intent reasoning: {reasoning}*" if reasoning else ""
+            return self._build_response(
+                message=CLARIFICATION_MESSAGE,
+                state=state,
+                intent_reasoning=llm_reasoning,
             )
-            msg = CLARIFICATION_MESSAGE + reasoning_block
-            return self._build_response(message=msg, state=state)
 
         # Intent recognized — set active skill and extract params
         state.active_skill = intent
@@ -195,17 +197,11 @@ class Orchestrator:
         state.merge_params(intent, extracted)
 
         # Build the downstream response (param questions or confirmation prompt)
+        # and attach the reasoning so the UI can render it as a distinct element
         response = self._check_and_confirm(state)
-
-        # Prepend the reasoning block so the user can see how intent was detected
-        skill_name = self.schemas[intent].display_name
-        reasoning_block = (
-            f"**Intent detected:** {skill_name} *(confidence: {confidence:.0%})*\n"
-            f"**Reasoning:** {reasoning}\n\n---\n\n"
-        ) if reasoning else (
-            f"**Intent detected:** {skill_name}\n\n---\n\n"
-        )
-        response['message'] = reasoning_block + (response.get('message') or '')
+        response['intent_reasoning'] = llm_reasoning
+        response['intent_detected'] = self.schemas[intent].display_name
+        response['intent_confidence'] = confidence
         return response
 
     # ------------------------------------------------------------------
@@ -330,6 +326,9 @@ class Orchestrator:
         table_columns: list = None,
         chart_json: dict = None,
         result_id: str = None,
+        intent_reasoning: str = None,
+        intent_detected: str = None,
+        intent_confidence: float = None,
     ) -> dict:
         return {
             "message": message,
@@ -339,6 +338,9 @@ class Orchestrator:
             "table_columns": table_columns,
             "chart_json": chart_json,
             "result_id": result_id,
+            "intent_reasoning": intent_reasoning,
+            "intent_detected": intent_detected,
+            "intent_confidence": intent_confidence,
             "uploaded_files": {
                 k: {"filename": v["filename"], "rows": len(v["data"])}
                 for k, v in state.uploaded_files.items()
