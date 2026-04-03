@@ -30,11 +30,11 @@ class LLMClient:
     def complete(self, messages: list[dict], temperature: float = None) -> str:
         """
         Send a list of {role, content} messages to the LLM Mesh and return the
-        text response. temperature defaults to self.temp_agents if not specified.
+        text response. Temperature is managed by the Dataiku LLM Mesh connection
+        configuration; the parameter is accepted for API compatibility but not
+        passed to the Dataiku client (Azure OpenAI via LLM Mesh does not expose
+        per-call temperature overrides through the Python SDK).
         """
-        if temperature is None:
-            temperature = self.temp_agents
-
         try:
             api_client = self._get_dataiku_client()
             project_key = __import__("dataiku").default_project_key()
@@ -42,8 +42,6 @@ class LLMClient:
             llm = project.get_llm(self.connection_id)
 
             completion = llm.new_completion()
-            completion.settings.temperature = temperature
-            completion.settings.max_tokens = self.max_tokens
             for msg in messages:
                 completion.with_message(msg["role"], msg["content"])
 
@@ -51,7 +49,6 @@ class LLMClient:
             self.call_log.append({
                 "messages": messages,
                 "response": resp.text,
-                "temperature": temperature,
             })
             return resp.text
 
@@ -60,7 +57,6 @@ class LLMClient:
             self.call_log.append({
                 "messages": messages,
                 "response": f"ERROR: {e}",
-                "temperature": temperature,
                 "error": True,
             })
             raise
